@@ -15,6 +15,9 @@ services:
       - --transaction-isolation=REPEATABLE-READ
       - --innodb-lock-wait-timeout=5
       - --log-error-verbosity=3
+      - --innodb-buffer-pool-size=268435456
+      - --innodb-buffer-pool-dump-at-shutdown=OFF
+      - --innodb-buffer-pool-load-at-startup=OFF
     volumes:
       - mysql_data:/var/lib/mysql
 
@@ -30,6 +33,10 @@ services:
       - ""
       - --appendonly
       - "no"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
 
 volumes:
   mysql_data:
