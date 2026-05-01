@@ -32,6 +32,14 @@ ORDER BY match_score DESC
 LIMIT %s
 """
 
+BUFFER_POOL_STATUS_SQL = """
+SHOW GLOBAL STATUS
+WHERE Variable_name IN (
+  'Innodb_buffer_pool_reads',
+  'Innodb_buffer_pool_read_requests'
+)
+"""
+
 
 @dataclass
 class MysqlConfig:
@@ -66,6 +74,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--markdown-out")
     parser.add_argument("--json-out")
+    parser.add_argument("--skip-index-prepare", action="store_true")
     parser.add_argument("--mysql-host", default="127.0.0.1")
     parser.add_argument("--mysql-port", type=int, default=3310)
     parser.add_argument("--mysql-user", default="lab")
@@ -109,6 +118,23 @@ def redis_connect(config: RedisConfig):
         db=config.db,
         decode_responses=True,
     )
+
+
+def fetch_buffer_pool_status(conn) -> dict[str, int]:
+    with conn.cursor() as cur:
+        cur.execute(BUFFER_POOL_STATUS_SQL)
+        rows = cur.fetchall()
+    values = {row["Variable_name"]: int(row["Value"]) for row in rows}
+    return {
+        "Innodb_buffer_pool_reads": values.get("Innodb_buffer_pool_reads", 0),
+        "Innodb_buffer_pool_read_requests": values.get(
+            "Innodb_buffer_pool_read_requests", 0
+        ),
+    }
+
+
+def diff_status(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
+    return {key: after[key] - before[key] for key in before}
 
 
 def ensure_base_table(conn) -> None:
@@ -301,12 +327,37 @@ def benchmark_mysql_case(
     warmup: int,
     request_counts: list[int],
 ) -> dict:
-    warmup_mysql(mysql_config, params, warmup)
-    latencies_ns, wall_ns = run_parallel(
-        lambda count: mysql_worker(count, mysql_config, params),
-        request_counts,
+    status_conn = mysql_connect(mysql_config)
+    try:
+        before_warmup = fetch_buffer_pool_status(status_conn)
+        warmup_mysql(mysql_config, params, warmup)
+        after_warmup = fetch_buffer_pool_status(status_conn)
+        latencies_ns, wall_ns = run_parallel(
+            lambda count: mysql_worker(count, mysql_config, params),
+            request_counts,
+        )
+        after_benchmark = fetch_buffer_pool_status(status_conn)
+    finally:
+        status_conn.close()
+
+    summary = summarize_case(case_name, latencies_ns, wall_ns)
+    summary.update(
+        {
+            "warmup_buffer_pool_reads_delta": diff_status(
+                before_warmup, after_warmup
+            )["Innodb_buffer_pool_reads"],
+            "warmup_buffer_pool_read_requests_delta": diff_status(
+                before_warmup, after_warmup
+            )["Innodb_buffer_pool_read_requests"],
+            "benchmark_buffer_pool_reads_delta": diff_status(
+                after_warmup, after_benchmark
+            )["Innodb_buffer_pool_reads"],
+            "benchmark_buffer_pool_read_requests_delta": diff_status(
+                after_warmup, after_benchmark
+            )["Innodb_buffer_pool_read_requests"],
+        }
     )
-    return summarize_case(case_name, latencies_ns, wall_ns)
+    return summary
 
 
 def benchmark_redis_case(
@@ -357,13 +408,19 @@ def format_markdown(results: list[dict], explains: dict[str, dict]) -> str:
         "",
         "## Metrics",
         "",
-        "| case | requests | avg_ms | p95_ms | max_ms | tps |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| case | requests | avg_ms | p95_ms | max_ms | tps | bp_reads_delta |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for result in results:
         lines.append(
-            "| {case} | {requests} | {avg_ms:.3f} | {p95_ms:.3f} | {max_ms:.3f} | {tps:.2f} |".format(
-                **result
+            "| {case} | {requests} | {avg_ms:.3f} | {p95_ms:.3f} | {max_ms:.3f} | {tps:.2f} | {bp_reads} |".format(
+                case=result["case"],
+                requests=result["requests"],
+                avg_ms=result["avg_ms"],
+                p95_ms=result["p95_ms"],
+                max_ms=result["max_ms"],
+                tps=result["tps"],
+                bp_reads=result.get("benchmark_buffer_pool_reads_delta", 0),
             )
         )
 
@@ -434,13 +491,15 @@ def main() -> None:
         conn = mysql_connect(mysql_config)
         try:
             if case_name == "plain":
-                prepare_plain_index(conn)
+                if not args.skip_index_prepare:
+                    prepare_plain_index(conn)
                 explains["plain"] = run_explain(conn, params)
                 results.append(
                     benchmark_mysql_case("plain", mysql_config, params, args.warmup, request_counts)
                 )
             elif case_name == "covering":
-                prepare_covering_index(conn)
+                if not args.skip_index_prepare:
+                    prepare_covering_index(conn)
                 explains["covering"] = run_explain(conn, params)
                 results.append(
                     benchmark_mysql_case("covering", mysql_config, params, args.warmup, request_counts)

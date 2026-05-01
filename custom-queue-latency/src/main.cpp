@@ -21,7 +21,8 @@ void printUsage(const char* argv0) {
     << "  --capacity <n>          큐 용량 (기본 1024, 0이면 unbounded)\n"
     << "  --rate <eps>            producer당 초당 이벤트 수 (0이면 최대 속도)\n"
     << "  --policy <block|drop>   backpressure 정책\n"
-    << "  --queue <type>          큐 타입 (현재: mutex)\n"
+    << "  --queue <type>          큐 타입 (현재: global_lock, split_lock, mpmc_ring, spsc; alias: mutex, twolock)\n"
+    << "  --wait-strategy <default|cv|spin_yield>\n"
     << "  --help                  도움말\n";
 }
 
@@ -80,6 +81,10 @@ ScenarioConfig parseArgs(int argc, char** argv) {
       config.queue_type = requireValue(i, argc, argv, "--queue");
       continue;
     }
+    if (isFlag(arg, "--wait-strategy")) {
+      config.wait_strategy = parseWaitStrategy(requireValue(i, argc, argv, "--wait-strategy"));
+      continue;
+    }
 
     throw std::runtime_error("알 수 없는 인자: " + arg);
   }
@@ -92,6 +97,7 @@ void printResult(const ScenarioConfig& config, const ScenarioResult& r) {
   std::cout << std::fixed << std::setprecision(2);
   std::cout << "queue=" << config.queue_type
             << " policy=" << policy_str
+            << " wait_strategy=" << waitStrategyName(config.wait_strategy)
             << " producers=" << config.producers
             << " consumers=" << config.consumers
             << " duration_s=" << config.duration.count()
@@ -107,6 +113,16 @@ void printResult(const ScenarioConfig& config, const ScenarioResult& r) {
             << " drop=" << r.dropped
             << " produced=" << r.produced
             << " consumed=" << r.consumed
+            << " push_attempts=" << r.queue_stats.push_attempts
+            << " push_success=" << r.queue_stats.push_success
+            << " push_fail=" << r.queue_stats.push_fail
+            << " pop_success=" << r.queue_stats.pop_success
+            << " spin_count=" << r.queue_stats.spin_count
+            << " yield_count=" << r.queue_stats.yield_count
+            << " park_count=" << r.queue_stats.park_count
+            << " full_hits=" << r.queue_stats.full_hits
+            << " empty_hits=" << r.queue_stats.empty_hits
+            << " max_observed_depth=" << r.queue_stats.max_observed_depth
             << " samples=" << r.samples
             << "\n";
 }
