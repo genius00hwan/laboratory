@@ -2,15 +2,15 @@
 
 ## 1. 프로젝트 개요
 
-이 프로젝트는 파일 기반 B+ Tree index를 구현한 프로그램이다.  
-명령행 인자를 통해 index 파일을 생성하고, key-value 데이터를 삽입하며, 단일 key 탐색과 범위 탐색을 수행한다.
+이 프로젝트는 파일 기반 B+ Tree index를 구현한 프로그램입니다.  
+명령행 인자를 통해 index 파일을 생성하고, key-value 데이터를 삽입하며, 단일 key 탐색과 범위 탐색을 수행합니다.
 
-구현은 크게 두 부분으로 나뉜다.
+구현은 크게 두 부분으로 나뉩니다.
 
 - `b+tree.cpp`: 명령행 인자 처리, 입력 파일 읽기, 출력 파일 쓰기
 - `BPlusTree.cpp`: B+ Tree의 삽입, 탐색, range search, node split, 파일 입출력 구현
 
-지원하는 명령은 다음과 같다.
+지원하는 명령은 다음과 같습니다.
 
 | 명령 | 기능 |
 | --- | --- |
@@ -22,16 +22,16 @@
 
 ## 2. B+ Tree 동작 원리
 
-B+ Tree는 데이터베이스와 파일 시스템에서 많이 사용되는 balanced tree 기반 index 구조이다.  
-일반적인 binary search tree와 달리 하나의 node가 여러 개의 key와 child pointer를 가질 수 있으며, 모든 실제 데이터는 leaf node에 저장된다.
+B+ Tree는 데이터베이스와 파일 시스템에서 많이 사용되는 balanced tree 기반 index 구조입니다.  
+일반적인 binary search tree와 달리 하나의 node가 여러 개의 key와 child pointer를 가질 수 있으며, 모든 실제 데이터는 leaf node에 저장됩니다.
 
-이 프로젝트의 B+ Tree는 다음 특징을 가진다.
+이 프로젝트의 B+ Tree는 다음 특징을 가집니다.
 
-- internal node는 탐색 경로를 결정하는 separator key와 child block id를 저장한다.
-- leaf node는 실제 `key-value` entry를 저장한다.
-- leaf node는 다음 leaf node의 block id를 저장하여 range search를 빠르게 수행한다.
-- root block id와 tree depth는 index file의 header 영역에 저장된다.
-- 각 node는 고정 크기 block으로 file에 저장된다.
+- internal node는 탐색 경로를 결정하는 separator key와 child block id를 저장합니다.
+- leaf node는 실제 `key-value` entry를 저장합니다.
+- leaf node는 다음 leaf node의 block id를 저장하여 range search를 빠르게 수행합니다.
+- root block id와 tree depth는 index file의 header 영역에 저장됩니다.
+- 각 node는 고정 크기 block으로 file에 저장됩니다.
 
 ## 3. 전체 구조
 
@@ -48,7 +48,7 @@ flowchart TD
 
 ## 4. 파일 저장 방식
 
-index 파일의 앞부분에는 metadata가 저장되고, 그 뒤에는 고정 크기 block들이 순서대로 저장된다.
+index 파일의 앞부분에는 metadata가 저장되고, 그 뒤에는 고정 크기 block들이 순서대로 저장됩니다.
 
 ```mermaid
 flowchart LR
@@ -58,7 +58,7 @@ flowchart LR
     N3 --> NX["..."]
 ```
 
-block id는 다음 식을 통해 실제 파일 offset으로 변환된다.
+block id는 다음 식을 통해 실제 파일 offset으로 변환됩니다.
 
 ```cpp
 std::streamoff BPlusTree::blockOffset(int blockId) const {
@@ -66,7 +66,7 @@ std::streamoff BPlusTree::blockOffset(int blockId) const {
 }
 ```
 
-metadata를 읽을 때는 block size, root block id, depth를 읽고, block size를 바탕으로 node 하나에 저장 가능한 entry 개수를 계산한다.
+metadata를 읽을 때는 block size, root block id, depth를 읽고, block size를 바탕으로 node 하나에 저장 가능한 entry 개수를 계산합니다.
 
 ```cpp
 void BPlusTree::getMetadata(const char *fileName) {
@@ -82,11 +82,11 @@ void BPlusTree::getMetadata(const char *fileName) {
 
 ## 5. 탐색 과정
 
-탐색은 root node에서 시작하여 leaf node까지 내려가는 방식으로 수행된다.
+탐색은 root node에서 시작하여 leaf node까지 내려가는 방식으로 수행됩니다.
 
-1. 현재 node가 internal node이면 separator key를 비교한다.
-2. 찾는 key보다 큰 separator를 만나기 전까지 오른쪽 child로 이동한다.
-3. leaf node에 도착하면 leaf 내부 entry를 순회하며 key를 찾는다.
+1. 현재 node가 internal node이면 separator key를 비교합니다.
+2. 찾는 key보다 큰 separator를 만나기 전까지 오른쪽 child로 이동합니다.
+3. leaf node에 도착하면 leaf 내부 entry를 순회하며 key를 찾습니다.
 
 ```mermaid
 flowchart TD
@@ -101,7 +101,7 @@ flowchart TD
     G -- "아니오" --> I["-1 반환"]
 ```
 
-핵심 탐색 경로 계산 코드는 다음과 같다.
+핵심 탐색 경로 계산 코드는 다음과 같습니다.
 
 ```cpp
 Path BPlusTree::getPath(int key) {
@@ -131,8 +131,8 @@ Path BPlusTree::getPath(int key) {
 
 ## 6. 삽입 과정
 
-B+ Tree의 삽입은 단순히 leaf에 entry를 추가하는 것에서 끝나지 않는다.  
-node가 가득 찬 경우 split이 발생하고, split 결과로 생긴 separator key가 부모 node로 전파된다.
+B+ Tree의 삽입은 단순히 leaf에 entry를 추가하는 것에서 끝나지 않습니다.  
+node가 가득 찬 경우 split이 발생하고, split 결과로 생긴 separator key가 부모 node로 전파됩니다.
 
 ```mermaid
 flowchart TD
@@ -152,7 +152,7 @@ flowchart TD
     M -- "아니오" --> J
 ```
 
-전체 삽입 흐름은 다음 코드에서 확인할 수 있다.
+전체 삽입 흐름은 다음 코드에서 확인할 수 있습니다.
 
 ```cpp
 void BPlusTree::insert(Entry entry) {
@@ -175,14 +175,14 @@ void BPlusTree::insert(Entry entry) {
 
 ## 7. Leaf Node Split
 
-leaf node가 가득 찬 상태에서 새 entry가 들어오면 다음 순서로 처리한다.
+leaf node가 가득 찬 상태에서 새 entry가 들어오면 다음 순서로 처리합니다.
 
-1. 새 entry를 leaf에 추가한다.
-2. key 기준으로 정렬한다.
-3. 중간 지점을 기준으로 왼쪽 leaf와 오른쪽 leaf로 나눈다.
-4. 기존 leaf는 왼쪽 데이터를 저장한다.
-5. 새 block에는 오른쪽 데이터를 저장한다.
-6. 오른쪽 leaf의 첫 번째 key를 부모 node로 올린다.
+1. 새 entry를 leaf에 추가합니다.
+2. key 기준으로 정렬합니다.
+3. 중간 지점을 기준으로 왼쪽 leaf와 오른쪽 leaf로 나눕니다.
+4. 기존 leaf는 왼쪽 데이터를 저장합니다.
+5. 새 block에는 오른쪽 데이터를 저장합니다.
+6. 오른쪽 leaf의 첫 번째 key를 부모 node로 올립니다.
 
 ```mermaid
 flowchart LR
@@ -192,7 +192,7 @@ flowchart LR
     D --> E["promote key = 30"]
 ```
 
-구현 코드는 다음과 같다.
+구현 코드는 다음과 같습니다.
 
 ```cpp
 Entry BPlusTree::insertLeaf(Entry entry, int blockId) {
@@ -219,8 +219,8 @@ Entry BPlusTree::insertLeaf(Entry entry, int blockId) {
 
 ## 8. Internal Node Split
 
-internal node split은 leaf split과 다르다.  
-leaf split에서는 오른쪽 leaf의 첫 key를 부모로 복사하지만, internal split에서는 중간 separator key가 부모로 올라가고 기존 internal node에서는 제거된다.
+internal node split은 leaf split과 다릅니다.  
+leaf split에서는 오른쪽 leaf의 첫 key를 부모로 복사하지만, internal split에서는 중간 separator key가 부모로 올라가고 기존 internal node에서는 제거됩니다.
 
 ```mermaid
 flowchart LR
@@ -230,7 +230,7 @@ flowchart LR
     B --> E["promote key = 30"]
 ```
 
-구현 코드는 다음과 같다.
+구현 코드는 다음과 같습니다.
 
 ```cpp
 Entry BPlusTree::propagate(Entry entry, int blockId) {
@@ -269,8 +269,8 @@ Entry BPlusTree::propagate(Entry entry, int blockId) {
 
 ## 9. Range Search
 
-B+ Tree에서 범위 탐색은 매우 효율적이다.  
-먼저 시작 key가 들어갈 leaf node를 찾은 뒤, leaf node의 `next` 값을 따라가면서 범위 안에 있는 entry만 순서대로 읽으면 된다.
+B+ Tree에서 범위 탐색은 매우 효율적입니다.  
+먼저 시작 key가 들어갈 leaf node를 찾은 뒤, leaf node의 `next` 값을 따라가면서 범위 안에 있는 entry만 순서대로 읽으면 됩니다.
 
 ```mermaid
 flowchart LR
@@ -279,7 +279,7 @@ flowchart LR
     C --> D["Leaf 3<br/>13 15 17"]
 ```
 
-이 프로젝트에서는 다음과 같이 구현했다.
+이 프로젝트에서는 다음과 같이 구현했습니다.
 
 ```cpp
 std::vector<Entry> BPlusTree::rangeSearch(int first, int last) {
